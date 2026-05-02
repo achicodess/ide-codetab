@@ -1,0 +1,1226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AbstractIDE</title>
+  <style>
+    :root {
+      --bg:       #0A0B18;
+      --bg2:      #0C0D1C;
+      --bg3:      #0E0F1E;
+      --bg4:      #131425;
+      --surface:  #1A1C30;
+      --text:     #CDD6F4;
+      --dim:      #636B8A;
+      --muted:    #3D4466;
+      --purple:   #BD93F9;
+      --green:    #50FA7B;
+      --cyan:     #8BE9FD;
+      --yellow:   #F1FA8C;
+      --orange:   #FFB86C;
+      --pink:     #FF79C6;
+      --red:      #FF5555;
+      --comment:  #545F80;
+      --statusbg: #6272A4;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', Consolas, monospace;
+      height: 100vh;
+      overflow: hidden;
+    }
+    .ide {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      width: 100vw;
+    }
+
+    /* ── Titlebar ─────────────────────────────── */
+    .titlebar {
+      background: var(--bg4);
+      height: 32px;
+      display: flex;
+      align-items: center;
+      padding: 0 14px;
+      gap: 8px;
+      flex-shrink: 0;
+      user-select: none;
+    }
+    .dot { width: 12px; height: 12px; border-radius: 50%; }
+    .d-r { background: #FF5F57; }
+    .d-y { background: #FEBC2E; }
+    .d-g { background: #28C840; }
+    .title-text {
+      margin: 0 auto;
+      color: var(--muted);
+      font-family: system-ui, sans-serif;
+      font-size: 11.5px;
+      letter-spacing: .3px;
+    }
+
+    /* ── Tabbar ──────────────────────────────── */
+    .tabbar {
+      background: var(--bg3);
+      height: 36px;
+      display: flex;
+      align-items: stretch;
+      flex-shrink: 0;
+      border-bottom: 1px solid var(--bg);
+      overflow: hidden;
+    }
+    #tab-list {
+      display: flex;
+      align-items: stretch;
+      overflow-x: auto;
+      overflow-y: hidden;
+      flex: 1;
+      min-width: 0;
+      scrollbar-width: none;
+    }
+    #tab-list::-webkit-scrollbar { display: none; }
+    .tab {
+      padding: 0 14px;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-family: system-ui, sans-serif;
+      font-size: 12px;
+      cursor: pointer;
+      border-right: 1px solid var(--bg);
+      white-space: nowrap;
+      border-top: 2px solid transparent;
+      transition: background .1s;
+      min-width: 0;
+    }
+    .tab.active { background: var(--bg); color: var(--text); border-top-color: var(--purple); }
+    .tab:not(.active) { color: var(--muted); }
+    .tab:not(.active):hover { background: #0D0E1A; color: var(--dim); }
+    .tab-close {
+      width: 15px; height: 15px;
+      display: flex; align-items: center; justify-content: center;
+      border-radius: 3px;
+      font-size: 9px;
+      color: var(--muted);
+      opacity: 0;
+      transition: opacity .1s, background .1s;
+      flex-shrink: 0;
+    }
+    .tab:hover .tab-close,
+    .tab.active .tab-close { opacity: 1; }
+    .tab-close:hover { background: var(--surface); color: var(--text); }
+    .toolbar {
+      display: flex;
+      align-items: center;
+      padding: 0 10px;
+      gap: 6px;
+      flex-shrink: 0;
+      border-left: 1px solid var(--bg);
+    }
+    .run-btn {
+      background: var(--green);
+      color: var(--bg);
+      border: none;
+      border-radius: 5px;
+      padding: 4px 13px;
+      font-family: system-ui, sans-serif;
+      font-size: 11.5px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      transition: background .15s, transform .1s, box-shadow .15s;
+    }
+    .run-btn:hover:not(:disabled) {
+      background: #69FF9A;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px #50FA7B40;
+    }
+    .run-btn:active:not(:disabled) { transform: translateY(0); }
+    .run-btn:disabled { background: var(--comment); color: var(--muted); cursor: not-allowed; }
+    .pkg-btn {
+      background: transparent;
+      color: var(--cyan);
+      border: 1px solid #8BE9FD40;
+      border-radius: 5px;
+      padding: 4px 10px;
+      font-family: system-ui, sans-serif;
+      font-size: 11px;
+      cursor: pointer;
+      transition: background .15s, border-color .15s;
+    }
+    .pkg-btn:hover { background: #8BE9FD12; border-color: var(--cyan); }
+
+    /* ── Body ─────────────────────────────────── */
+    .body { display: flex; flex: 1; overflow: hidden; }
+
+    /* ── Activity bar ────────────────────────── */
+    .activity {
+      background: #080913;
+      width: 44px;
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 10px 0;
+      gap: 2px;
+      border-right: 1px solid var(--bg3);
+    }
+    .act-btn {
+      width: 36px; height: 36px;
+      display: flex; align-items: center; justify-content: center;
+      border-radius: 6px;
+      color: var(--muted);
+      cursor: pointer;
+      transition: color .15s, background .15s;
+    }
+    .act-btn:hover { color: var(--dim); background: var(--surface); }
+    .act-btn.active { color: var(--text); }
+    .act-btn svg { width: 19px; height: 19px; }
+
+    /* ── Sidebar ─────────────────────────────── */
+    .sidebar {
+      background: var(--bg2);
+      width: 195px;
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      border-right: 1px solid var(--bg3);
+      transition: width .15s ease;
+    }
+    .sidebar.hidden { width: 0; }
+    .sidebar-header {
+      color: var(--muted);
+      font-size: 10px;
+      font-family: system-ui, sans-serif;
+      font-weight: 700;
+      letter-spacing: 1.2px;
+      padding: 10px 10px 6px;
+      text-transform: uppercase;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+    .new-btn {
+      background: none; border: none;
+      color: var(--dim);
+      cursor: pointer;
+      width: 20px; height: 20px;
+      display: flex; align-items: center; justify-content: center;
+      border-radius: 3px;
+      font-size: 16px;
+      line-height: 1;
+      transition: color .1s, background .1s;
+    }
+    .new-btn:hover { color: var(--text); background: var(--surface); }
+    .file-tree {
+      flex: 1;
+      overflow-y: auto;
+      padding-bottom: 8px;
+      scrollbar-width: thin;
+      scrollbar-color: var(--surface) transparent;
+    }
+    .file-tree::-webkit-scrollbar { width: 4px; }
+    .file-tree::-webkit-scrollbar-thumb { background: var(--surface); border-radius: 2px; }
+    .fi {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      font-family: system-ui, sans-serif;
+      font-size: 12px;
+      color: var(--dim);
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background .1s, color .1s;
+    }
+    .fi:hover { background: rgba(189,147,249,.05); color: var(--text); }
+    .fi.active {
+      background: rgba(189,147,249,.1);
+      color: var(--text);
+      border-left: 2px solid var(--purple);
+      padding-left: 8px;
+    }
+    .fdot { width: 7px; height: 7px; border-radius: 1.5px; flex-shrink: 0; }
+    .fdot-py   { background: var(--green); }
+    .fdot-md   { background: var(--cyan); }
+    .fdot-toml { background: var(--orange); }
+    .fdot-json { background: var(--yellow); }
+    .fdot-js   { background: #F7DF1E; }
+    .fdot-css  { background: #5572C8; }
+    .fdot-html { background: #E34F26; }
+    .fdot-txt  { background: var(--dim); }
+    .fdot-env  { background: var(--purple); }
+    .fdot-other { background: var(--comment); }
+
+    /* ── Editor + terminal ───────────────────── */
+    .editor-area {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      min-width: 0;
+    }
+    #monaco-container { flex: 1; overflow: hidden; }
+
+    /* resize bar */
+    .resize-bar {
+      height: 5px;
+      flex-shrink: 0;
+      cursor: ns-resize;
+      background: var(--bg3);
+      transition: background .15s;
+      position: relative;
+    }
+    .resize-bar::after {
+      content: '';
+      position: absolute;
+      inset: 1px 40% 1px 40%;
+      background: var(--surface);
+      border-radius: 2px;
+    }
+    .resize-bar:hover, .resize-bar.dragging { background: var(--purple); }
+
+    /* ── Terminal ────────────────────────────── */
+    .terminal {
+      background: #080913;
+      border-top: 1px solid var(--bg3);
+      display: flex;
+      flex-direction: column;
+      height: 210px;
+      min-height: 32px;
+      flex-shrink: 0;
+    }
+    .terminal.collapsed { height: 32px !important; }
+    .term-hdr {
+      height: 32px;
+      display: flex;
+      align-items: center;
+      padding: 0 12px;
+      gap: 10px;
+      border-bottom: 1px solid var(--bg3);
+      flex-shrink: 0;
+      user-select: none;
+    }
+    .term-title {
+      font-family: system-ui, sans-serif;
+      font-size: 10.5px;
+      font-weight: 700;
+      color: var(--dim);
+      text-transform: uppercase;
+      letter-spacing: .8px;
+    }
+    .term-actions { margin-left: auto; display: flex; gap: 2px; }
+    .term-act {
+      background: none; border: none;
+      color: var(--dim);
+      cursor: pointer;
+      padding: 3px 7px;
+      border-radius: 3px;
+      font-family: system-ui, sans-serif;
+      font-size: 11px;
+      transition: color .1s, background .1s;
+    }
+    .term-act:hover { color: var(--text); background: var(--surface); }
+    .term-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px 14px;
+      font-size: 12.5px;
+      line-height: 1.65;
+      scrollbar-width: thin;
+      scrollbar-color: var(--surface) transparent;
+    }
+    .term-body::-webkit-scrollbar { width: 4px; }
+    .term-body::-webkit-scrollbar-thumb { background: var(--surface); border-radius: 2px; }
+    .tl { margin-bottom: 1px; white-space: pre-wrap; word-break: break-all; }
+    .tl-out     { color: var(--text); }
+    .tl-err     { color: var(--red); }
+    .tl-warn    { color: var(--yellow); }
+    .tl-info    { color: var(--cyan); }
+    .tl-ok      { color: var(--green); }
+    .tl-prompt  { color: var(--purple); }
+    .tl-empty   { color: var(--muted); font-family: system-ui; font-style: italic; font-size: 12px; }
+
+    /* ── Status bar ──────────────────────────── */
+    .statusbar {
+      background: var(--statusbg);
+      height: 23px;
+      display: flex;
+      align-items: center;
+      padding: 0 12px;
+      gap: 14px;
+      font-family: system-ui, sans-serif;
+      font-size: 11px;
+      color: #131425;
+      flex-shrink: 0;
+      font-weight: 500;
+      user-select: none;
+    }
+    .sb-right { margin-left: auto; display: flex; gap: 14px; align-items: center; }
+    .py-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--yellow);
+      display: inline-block;
+      animation: dotpulse 1.5s ease-in-out infinite;
+    }
+    .py-dot.ready  { background: var(--green); animation: none; }
+    .py-dot.error  { background: var(--red);   animation: none; }
+    @keyframes dotpulse { 0%,100%{opacity:1} 50%{opacity:.25} }
+
+    /* ── Context menu ────────────────────────── */
+    #ctx {
+      position: fixed;
+      background: var(--bg4);
+      border: 1px solid var(--surface);
+      border-radius: 7px;
+      padding: 4px;
+      z-index: 999;
+      min-width: 148px;
+      box-shadow: 0 8px 28px rgba(0,0,0,.45);
+      display: none;
+    }
+    #ctx.show { display: block; }
+    .ctx-i {
+      padding: 6px 12px;
+      font-family: system-ui, sans-serif;
+      font-size: 12px;
+      color: var(--dim);
+      cursor: pointer;
+      border-radius: 4px;
+      transition: background .1s, color .1s;
+    }
+    .ctx-i:hover { background: var(--surface); color: var(--text); }
+    .ctx-i.del:hover { background: rgba(255,85,85,.15); color: var(--red); }
+    .ctx-sep { height: 1px; background: var(--surface); margin: 4px; }
+
+    /* ── Modal ───────────────────────────────── */
+    .overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,.65);
+      z-index: 1000;
+      display: flex; align-items: center; justify-content: center;
+      display: none;
+    }
+    .overlay.show { display: flex; }
+    .modal {
+      background: var(--bg4);
+      border: 1px solid var(--surface);
+      border-radius: 9px;
+      padding: 20px 22px;
+      min-width: 290px;
+      box-shadow: 0 20px 50px rgba(0,0,0,.55);
+    }
+    .modal h3 {
+      font-family: system-ui, sans-serif;
+      font-size: 13px; color: var(--text);
+      margin-bottom: 13px;
+    }
+    .modal input {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--surface);
+      border-radius: 5px;
+      padding: 7px 10px;
+      color: var(--text);
+      font-family: 'Cascadia Code','Fira Code',monospace;
+      font-size: 12px;
+      outline: none;
+      transition: border-color .15s;
+    }
+    .modal input:focus { border-color: var(--purple); }
+    .modal-btns {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px; margin-top: 15px;
+    }
+    .mbtn {
+      padding: 6px 15px;
+      border-radius: 5px;
+      font-family: system-ui, sans-serif;
+      font-size: 12px;
+      cursor: pointer;
+      border: none;
+      transition: opacity .1s;
+    }
+    .mbtn:hover { opacity: .85; }
+    .mbtn.pri { background: var(--purple); color: var(--bg); font-weight: 600; }
+    .mbtn.sec { background: var(--surface); color: var(--dim); }
+
+    /* ── pkg install modal ─────────────────── */
+    #pkg-modal-label {
+      font-family: system-ui, sans-serif;
+      font-size: 11.5px;
+      color: var(--dim);
+      margin-bottom: 8px;
+      display: block;
+    }
+  </style>
+</head>
+<body>
+<div class="ide">
+
+  <!-- Titlebar -->
+  <div class="titlebar">
+    <div class="dot d-r"></div>
+    <div class="dot d-y"></div>
+    <div class="dot d-g"></div>
+    <span class="title-text" id="title">AbstractIDE</span>
+  </div>
+
+  <!-- Tabbar -->
+  <div class="tabbar">
+    <div id="tab-list"></div>
+    <div class="toolbar">
+      <button class="pkg-btn" id="pkg-btn" title="Install a Python package via micropip">⬇ pkg</button>
+      <button class="run-btn" id="run-btn" disabled title="Run current file (Ctrl+Enter or F5)">▶ Run</button>
+    </div>
+  </div>
+
+  <div class="body">
+
+    <!-- Activity bar -->
+    <div class="activity">
+      <div class="act-btn active" id="act-explorer" title="Toggle Explorer" onclick="toggleSidebar()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M3 7a2 2 0 012-2h5l2 2h7a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/>
+        </svg>
+      </div>
+      <div class="act-btn" title="Find (Ctrl+F)" onclick="if(editor)editor.getAction('actions.find').run()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <circle cx="11" cy="11" r="7"/>
+          <path d="M21 21l-4.35-4.35"/>
+        </svg>
+      </div>
+      <div class="act-btn" title="Keyboard shortcuts" onclick="showShortcuts()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <rect x="2" y="6" width="20" height="12" rx="2"/>
+          <path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M8 14h8"/>
+        </svg>
+      </div>
+    </div>
+
+    <!-- Sidebar -->
+    <div class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <span>Explorer</span>
+        <button class="new-btn" title="New File (Ctrl+N)" onclick="openNewModal()">+</button>
+      </div>
+      <div class="file-tree" id="file-tree"></div>
+    </div>
+
+    <!-- Editor area -->
+    <div class="editor-area">
+      <div id="monaco-container"></div>
+      <div class="resize-bar" id="resize-bar"></div>
+      <div class="terminal" id="terminal">
+        <div class="term-hdr">
+          <span class="term-title">Output</span>
+          <div class="term-actions">
+            <button class="term-act" onclick="clearTerm()" title="Clear output">⌫ clear</button>
+            <button class="term-act" id="term-toggle" onclick="toggleTerm()">▼</button>
+          </div>
+        </div>
+        <div class="term-body" id="term-body">
+          <div class="tl tl-empty">Run a file to see output — (Ctrl+Enter or F5)</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Status bar -->
+  <div class="statusbar">
+    <span>⎇ main</span>
+    <div class="sb-right">
+      <span><span class="py-dot" id="py-dot"></span> <span id="py-status">Loading Python…</span></span>
+      <span id="sb-lang">Python</span>
+      <span>UTF-8</span>
+      <span id="sb-pos">Ln 1, Col 1</span>
+    </div>
+  </div>
+
+</div>
+
+<!-- Context menu -->
+<div id="ctx">
+  <div class="ctx-i" id="ctx-open">Open</div>
+  <div class="ctx-i" id="ctx-rename">Rename</div>
+  <div class="ctx-sep"></div>
+  <div class="ctx-i del" id="ctx-delete">Delete</div>
+</div>
+
+<!-- New/Rename modal -->
+<div class="overlay" id="modal">
+  <div class="modal">
+    <h3 id="modal-title">New File</h3>
+    <input type="text" id="modal-input" placeholder="filename.py" autocomplete="off" spellcheck="false"/>
+    <div class="modal-btns">
+      <button class="mbtn sec" onclick="closeModal()">Cancel</button>
+      <button class="mbtn pri" id="modal-ok">Create</button>
+    </div>
+  </div>
+</div>
+
+<!-- Package install modal -->
+<div class="overlay" id="pkg-modal">
+  <div class="modal">
+    <h3>Install Python Package</h3>
+    <label id="pkg-modal-label">Package name (e.g. numpy, requests, pandas)</label>
+    <input type="text" id="pkg-input" placeholder="package-name" autocomplete="off" spellcheck="false"/>
+    <div class="modal-btns">
+      <button class="mbtn sec" onclick="closePkgModal()">Cancel</button>
+      <button class="mbtn pri" id="pkg-ok">Install</button>
+    </div>
+  </div>
+</div>
+
+<!-- Monaco loader -->
+<script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.js"></script>
+<script>
+'use strict';
+// ═══════════════════════════════════════════════════════════
+//  DEFAULT FILES
+// ═══════════════════════════════════════════════════════════
+const DEFAULTS = {
+'main.py': `# AbstractIDE — main.py
+# Run: Ctrl+Enter or F5   |   Install packages: click ⬇ pkg
+from typing import Generator
+
+
+class Developer:
+    def __init__(self, name: str):
+        self.name = name
+        self.skills = ["Python", "ML", "AI"]
+        self.mode = "cyberpunk"
+
+    def build(self) -> Generator:
+        while True:
+            yield self.create()
+
+    # TODO: ship it
+    def create(self):
+        return "something awesome"
+
+
+dev = Developer("me")
+result = dev.create()
+print(f"✦  Built: {result}")
+print(f"⚡ Skills: {', '.join(dev.skills)}")
+print(f"🌆 Mode:   {dev.mode}")
+`,
+'models.py': `# models.py — data models
+from dataclasses import dataclass, field
+from typing import List
+
+
+@dataclass
+class Project:
+    name: str
+    tech_stack: List[str] = field(default_factory=list)
+    status: str = "building"
+
+    def summary(self) -> str:
+        stack = ", ".join(self.tech_stack)
+        return f"[{self.status.upper()}] {self.name}  ({stack})"
+
+    def add_tech(self, tech: str) -> None:
+        self.tech_stack.append(tech)
+
+
+if __name__ == "__main__":
+    p = Project("AbstractIDE", ["Monaco", "Pyodide", "localStorage"])
+    p.add_tech("Dracula Theme")
+    print(p.summary())
+`,
+'utils.py': `# utils.py — helpers
+from typing import TypeVar, List
+
+T = TypeVar("T")
+
+
+def greet(name: str) -> str:
+    """Return a personalised greeting."""
+    return f"Hello, {name}! 👋"
+
+
+def clamp(val: float, lo: float, hi: float) -> float:
+    """Clamp val between lo and hi."""
+    return max(lo, min(hi, val))
+
+
+def chunk(lst: List[T], size: int) -> List[List[T]]:
+    """Split list into sub-lists of given size."""
+    return [lst[i : i + size] for i in range(0, len(lst), size)]
+
+
+if __name__ == "__main__":
+    print(greet("World"))
+    print("clamp(15, 0, 10) =", clamp(15, 0, 10))
+    print("chunk([1..7], 3) =", chunk(list(range(1, 8)), 3))
+`,
+};
+
+// ═══════════════════════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════════════════════
+const LS = 'abstractide_v3';
+let files    = {};
+let openTabs = [];   // ordered list of open filenames
+let active   = null; // currently active filename
+let editor   = null; // monaco editor instance
+let models   = {};   // filename → monaco.ITextModel
+let pyodide  = null;
+let pyReady  = false;
+let running  = false;
+let sidebarOn = true;
+let termCollapsed = false;
+let ctxFile  = null;
+let modalMode = null; // 'new' | 'rename'
+
+// ═══════════════════════════════════════════════════════════
+//  PERSISTENCE
+// ═══════════════════════════════════════════════════════════
+function loadFiles() {
+  try {
+    const s = localStorage.getItem(LS);
+    files = s ? JSON.parse(s) : { ...DEFAULTS };
+  } catch { files = { ...DEFAULTS }; }
+  saveFiles();
+}
+function saveFiles() {
+  try { localStorage.setItem(LS, JSON.stringify(files)); } catch {}
+}
+
+// ═══════════════════════════════════════════════════════════
+//  UTILITY
+// ═══════════════════════════════════════════════════════════
+function ext(name) {
+  const p = name.split('.');
+  return p.length > 1 ? p[p.length - 1].toLowerCase() : 'other';
+}
+function lang(name) {
+  return ({py:'python',js:'javascript',ts:'typescript',json:'json',
+           md:'markdown',html:'html',css:'css',toml:'toml',txt:'plaintext',
+           sh:'shell',yaml:'yaml',yml:'yaml',xml:'xml'})[ext(name)] ?? 'plaintext';
+}
+function dotClass(name) {
+  const e = ext(name);
+  return ({py:'py',md:'md',toml:'toml',json:'json',js:'js',css:'css',html:'html',txt:'txt',env:'env'})[e]
+    ?? 'other';
+}
+
+// ═══════════════════════════════════════════════════════════
+//  FILE TREE
+// ═══════════════════════════════════════════════════════════
+function renderTree() {
+  const tree = document.getElementById('file-tree');
+  tree.innerHTML = '';
+  Object.keys(files).sort().forEach(name => {
+    const el = document.createElement('div');
+    el.className = 'fi' + (name === active ? ' active' : '');
+    el.dataset.file = name;
+    el.innerHTML = `<div class="fdot fdot-${dotClass(name)}"></div><span>${name}</span>`;
+    el.addEventListener('click', () => openFile(name));
+    el.addEventListener('contextmenu', e => { e.preventDefault(); showCtx(e, name); });
+    tree.appendChild(el);
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+//  TABS
+// ═══════════════════════════════════════════════════════════
+function renderTabs() {
+  const list = document.getElementById('tab-list');
+  list.innerHTML = '';
+  openTabs.forEach(name => {
+    const tab = document.createElement('div');
+    tab.className = 'tab' + (name === active ? ' active' : '');
+    tab.innerHTML = `<div class="fdot fdot-${dotClass(name)}" style="width:6px;height:6px"></div>
+      <span>${name}</span>
+      <div class="tab-close">✕</div>`;
+    tab.addEventListener('click', () => switchTo(name));
+    tab.querySelector('.tab-close').addEventListener('click', e => { e.stopPropagation(); closeTab(name); });
+    list.appendChild(tab);
+  });
+  document.getElementById('title').textContent = active ? `${active} — AbstractIDE` : 'AbstractIDE';
+}
+
+// ═══════════════════════════════════════════════════════════
+//  EDITOR OPS
+// ═══════════════════════════════════════════════════════════
+function openFile(name) {
+  if (!files.hasOwnProperty(name)) return;
+  if (!openTabs.includes(name)) openTabs.push(name);
+  switchTo(name);
+}
+
+function switchTo(name) {
+  if (!files.hasOwnProperty(name)) return;
+  active = name;
+  if (editor) {
+    if (!models[name]) {
+      models[name] = monaco.editor.createModel(files[name], lang(name));
+      models[name].onDidChangeContent(() => {
+        files[name] = models[name].getValue();
+        saveFiles();
+      });
+    }
+    editor.setModel(models[name]);
+    editor.focus();
+  }
+  document.getElementById('sb-lang').textContent =
+    lang(name).charAt(0).toUpperCase() + lang(name).slice(1);
+  renderTabs();
+  renderTree();
+  updatePos();
+}
+
+function closeTab(name) {
+  const idx = openTabs.indexOf(name);
+  openTabs = openTabs.filter(t => t !== name);
+  if (models[name]) { models[name].dispose(); delete models[name]; }
+  if (active === name) {
+    if (openTabs.length) switchTo(openTabs[Math.min(idx, openTabs.length - 1)]);
+    else {
+      active = null;
+      if (editor) editor.setModel(null);
+      document.getElementById('title').textContent = 'AbstractIDE';
+      renderTabs();
+      renderTree();
+    }
+  } else { renderTabs(); renderTree(); }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  FILE OPS
+// ═══════════════════════════════════════════════════════════
+function createFile(name) {
+  if (!name) return;
+  if (!name.includes('.')) name += '.py';
+  if (files[name] !== undefined) { openFile(name); return; }
+  const tmpl = {
+    py:`# ${name}\n\ndef main():\n    pass\n\n\nif __name__ == "__main__":\n    main()\n`,
+    md:`# ${name.replace(/\.md$/,'')}\n\n`,
+    json:`{\n  \n}\n`,
+    js:`// ${name}\n\n`,
+    html:`<!DOCTYPE html>\n<html lang="en">\n<head>\n  <meta charset="UTF-8">\n  <title></title>\n</head>\n<body>\n\n</body>\n</html>\n`,
+    css:`/* ${name} */\n\n`,
+  };
+  files[name] = tmpl[ext(name)] ?? '';
+  saveFiles();
+  renderTree();
+  openFile(name);
+}
+
+function renameFile(oldName, newName) {
+  if (!newName || newName === oldName) return;
+  if (files[newName] !== undefined) { alert(`"${newName}" already exists.`); return; }
+  files[newName] = files[oldName];
+  delete files[oldName];
+  saveFiles();
+  const ti = openTabs.indexOf(oldName);
+  if (ti !== -1) openTabs[ti] = newName;
+  if (models[oldName]) {
+    models[newName] = monaco.editor.createModel(files[newName], lang(newName));
+    models[newName].onDidChangeContent(() => { files[newName] = models[newName].getValue(); saveFiles(); });
+    models[oldName].dispose(); delete models[oldName];
+  }
+  if (active === oldName) {
+    active = newName;
+    if (editor && models[newName]) editor.setModel(models[newName]);
+  }
+  renderTree(); renderTabs();
+}
+
+function deleteFile(name) {
+  delete files[name]; saveFiles();
+  if (openTabs.includes(name)) closeTab(name);
+  else renderTree();
+}
+
+// ═══════════════════════════════════════════════════════════
+//  PYODIDE
+// ═══════════════════════════════════════════════════════════
+async function initPyodide() {
+  try {
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js';
+    document.head.appendChild(s);
+    await new Promise((res, rej) => { s.onload = res; s.onerror = rej; });
+    tlog('info', '⏳ Loading Python runtime (Pyodide v0.26.4)…');
+    pyodide = await loadPyodide({ indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.26.4/full/' });
+    pyReady = true;
+    document.getElementById('py-dot').className   = 'py-dot ready';
+    document.getElementById('py-status').textContent = 'Python 3.12 (Pyodide)';
+    document.getElementById('run-btn').disabled   = false;
+    tlog('ok', '✓ Python runtime ready  —  type ▶ Run or press Ctrl+Enter');
+  } catch (e) {
+    document.getElementById('py-dot').className     = 'py-dot error';
+    document.getElementById('py-status').textContent = 'Python unavailable';
+    tlog('err', `Failed to load Python runtime: ${e}`);
+  }
+}
+
+async function installPackage(pkg) {
+  if (!pyReady) { tlog('warn', 'Python not ready yet'); return; }
+  tlog('info', `⏳ Installing "${pkg}" via micropip…`);
+  try {
+    await pyodide.loadPackage('micropip');
+    await pyodide.runPythonAsync(`import micropip; await micropip.install("${pkg}")`);
+    tlog('ok', `✓ "${pkg}" installed successfully`);
+  } catch (e) {
+    tlog('err', `Install failed: ${e.message ?? e}`);
+  }
+}
+
+async function runCode() {
+  if (!pyReady || running) return;
+  if (!active) { tlog('warn', 'No file open'); return; }
+  if (ext(active) !== 'py') { tlog('warn', `Cannot run "${active}" — only .py files`); return; }
+
+  // flush editor to files
+  if (editor && models[active]) { files[active] = models[active].getValue(); saveFiles(); }
+
+  running = true;
+  const btn = document.getElementById('run-btn');
+  btn.disabled = true; btn.textContent = '⏳ Running…';
+
+  const ts = new Date().toLocaleTimeString();
+  tlog('prompt', `$ python ${active}   [${ts}]`);
+
+  try {
+    // redirect stdout/stderr
+    pyodide.runPython(
+      `import sys, io\n_out=io.StringIO()\n_err=io.StringIO()\nsys.stdout=_out\nsys.stderr=_err`
+    );
+
+    const t0 = performance.now();
+    let pyErr = null;
+
+    try {
+      pyodide.runPython(files[active]);
+    } catch (e) { pyErr = e; }
+
+    const elapsed = ((performance.now() - t0) / 1000).toFixed(3);
+
+    const stdout = pyodide.runPython(`_out.getvalue()`);
+    const stderr = pyodide.runPython(`_err.getvalue()`);
+
+    // restore
+    pyodide.runPython(`sys.stdout=sys.__stdout__\nsys.stderr=sys.__stderr__`);
+
+    stdout.split('\n').forEach(l => { if (l) tlog('out', l); });
+    stderr.split('\n').forEach(l => { if (l) tlog('warn', l); });
+
+    if (pyErr) {
+      tlog('err', pyErr.message || String(pyErr));
+    } else {
+      tlog('ok', `✓ Finished in ${elapsed}s`);
+    }
+  } catch (e) {
+    tlog('err', `Runtime error: ${e.message ?? e}`);
+    try { pyodide.runPython(`sys.stdout=sys.__stdout__\nsys.stderr=sys.__stderr__`); } catch {}
+  }
+
+  running = false;
+  btn.disabled = false; btn.textContent = '▶ Run';
+}
+
+// ═══════════════════════════════════════════════════════════
+//  TERMINAL
+// ═══════════════════════════════════════════════════════════
+function tlog(type, text) {
+  const body = document.getElementById('term-body');
+  const empty = body.querySelector('.tl-empty');
+  if (empty) empty.remove();
+  const div = document.createElement('div');
+  div.className = `tl tl-${type === 'err' ? 'err' : type === 'ok' ? 'ok' :
+    type === 'info' ? 'info' : type === 'warn' ? 'warn' : type === 'prompt' ? 'prompt' : 'out'}`;
+  div.textContent = text;
+  body.appendChild(div);
+  body.scrollTop = body.scrollHeight;
+  // auto-open terminal if collapsed
+  const term = document.getElementById('terminal');
+  if (term.classList.contains('collapsed')) toggleTerm();
+}
+
+function clearTerm() {
+  document.getElementById('term-body').innerHTML =
+    '<div class="tl tl-empty">Run a file to see output — (Ctrl+Enter or F5)</div>';
+}
+
+function toggleTerm() {
+  const term = document.getElementById('terminal');
+  const btn  = document.getElementById('term-toggle');
+  termCollapsed = !termCollapsed;
+  term.classList.toggle('collapsed', termCollapsed);
+  btn.textContent = termCollapsed ? '▲' : '▼';
+  if (editor) editor.layout();
+}
+
+// ═══════════════════════════════════════════════════════════
+//  SIDEBAR
+// ═══════════════════════════════════════════════════════════
+function toggleSidebar() {
+  sidebarOn = !sidebarOn;
+  document.getElementById('sidebar').classList.toggle('hidden', !sidebarOn);
+  document.getElementById('act-explorer').classList.toggle('active', sidebarOn);
+  if (editor) editor.layout();
+}
+
+// ═══════════════════════════════════════════════════════════
+//  CONTEXT MENU
+// ═══════════════════════════════════════════════════════════
+function showCtx(e, name) {
+  ctxFile = name;
+  const m = document.getElementById('ctx');
+  m.style.left = Math.min(e.clientX, window.innerWidth - 160) + 'px';
+  m.style.top  = Math.min(e.clientY, window.innerHeight - 110) + 'px';
+  m.classList.add('show');
+}
+document.addEventListener('click', () => document.getElementById('ctx').classList.remove('show'));
+document.getElementById('ctx-open').addEventListener('click', () => { if (ctxFile) openFile(ctxFile); });
+document.getElementById('ctx-rename').addEventListener('click', () => { if (ctxFile) openRenameModal(ctxFile); });
+document.getElementById('ctx-delete').addEventListener('click', () => {
+  if (ctxFile && confirm(`Delete "${ctxFile}"? This cannot be undone.`)) deleteFile(ctxFile);
+});
+
+// ═══════════════════════════════════════════════════════════
+//  MODALS
+// ═══════════════════════════════════════════════════════════
+function openNewModal() {
+  modalMode = 'new';
+  document.getElementById('modal-title').textContent = 'New File';
+  document.getElementById('modal-input').value = '';
+  document.getElementById('modal-input').placeholder = 'filename.py';
+  document.getElementById('modal-ok').textContent = 'Create';
+  document.getElementById('modal').classList.add('show');
+  setTimeout(() => document.getElementById('modal-input').focus(), 30);
+}
+function openRenameModal(name) {
+  modalMode = 'rename';
+  ctxFile = name;
+  document.getElementById('modal-title').textContent = `Rename "${name}"`;
+  document.getElementById('modal-input').value = name;
+  document.getElementById('modal-ok').textContent = 'Rename';
+  document.getElementById('modal').classList.add('show');
+  setTimeout(() => { const i = document.getElementById('modal-input'); i.focus(); i.select(); }, 30);
+}
+function closeModal() {
+  document.getElementById('modal').classList.remove('show');
+  modalMode = null;
+}
+document.getElementById('modal-ok').addEventListener('click', () => {
+  const v = document.getElementById('modal-input').value.trim();
+  if (modalMode === 'new') createFile(v);
+  else if (modalMode === 'rename') renameFile(ctxFile, v);
+  closeModal();
+});
+document.getElementById('modal-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('modal-ok').click();
+  if (e.key === 'Escape') closeModal();
+});
+document.getElementById('modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('modal')) closeModal();
+});
+
+// Package modal
+document.getElementById('pkg-btn').addEventListener('click', () => {
+  document.getElementById('pkg-input').value = '';
+  document.getElementById('pkg-modal').classList.add('show');
+  setTimeout(() => document.getElementById('pkg-input').focus(), 30);
+});
+function closePkgModal() { document.getElementById('pkg-modal').classList.remove('show'); }
+document.getElementById('pkg-ok').addEventListener('click', async () => {
+  const pkg = document.getElementById('pkg-input').value.trim();
+  closePkgModal();
+  if (pkg) await installPackage(pkg);
+});
+document.getElementById('pkg-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('pkg-ok').click();
+  if (e.key === 'Escape') closePkgModal();
+});
+document.getElementById('pkg-modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('pkg-modal')) closePkgModal();
+});
+
+// ═══════════════════════════════════════════════════════════
+//  SHORTCUTS INFO
+// ═══════════════════════════════════════════════════════════
+function showShortcuts() {
+  alert(
+    'Keyboard Shortcuts\n\n' +
+    'Ctrl+Enter / F5   Run current file\n' +
+    'Ctrl+N            New file\n' +
+    'Ctrl+W            Close tab\n' +
+    'Ctrl+F            Find / Replace\n' +
+    'Ctrl+`            Toggle terminal\n' +
+    'Ctrl+\\            Toggle sidebar\n' +
+    'Ctrl+S            (auto-saved always)\n\n' +
+    'Right-click file  Rename / Delete\n' +
+    '⬇ pkg button      Install Python package'
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+//  TERMINAL RESIZE
+// ═══════════════════════════════════════════════════════════
+(function() {
+  const bar = document.getElementById('resize-bar');
+  let drag = false, startY, startH;
+  bar.addEventListener('mousedown', e => {
+    drag = true; startY = e.clientY;
+    startH = document.getElementById('terminal').offsetHeight;
+    document.body.style.cssText += 'cursor:ns-resize;user-select:none';
+    bar.classList.add('dragging');
+  });
+  document.addEventListener('mousemove', e => {
+    if (!drag) return;
+    const newH = Math.max(32, Math.min(window.innerHeight * .65, startH + startY - e.clientY));
+    document.getElementById('terminal').style.height = newH + 'px';
+    if (editor) editor.layout();
+  });
+  document.addEventListener('mouseup', () => {
+    if (drag) {
+      drag = false;
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      bar.classList.remove('dragging');
+    }
+  });
+})();
+
+// ═══════════════════════════════════════════════════════════
+//  STATUS BAR
+// ═══════════════════════════════════════════════════════════
+function updatePos() {
+  if (!editor) return;
+  const p = editor.getPosition();
+  if (p) document.getElementById('sb-pos').textContent = `Ln ${p.lineNumber}, Col ${p.column}`;
+}
+
+// ═══════════════════════════════════════════════════════════
+//  KEYBOARD
+// ═══════════════════════════════════════════════════════════
+document.addEventListener('keydown', e => {
+  const mod = e.ctrlKey || e.metaKey;
+  if (mod && e.key === 'Enter') { e.preventDefault(); runCode(); }
+  if (e.key === 'F5')           { e.preventDefault(); runCode(); }
+  if (mod && (e.key === 'n' || e.key === 'N') && !e.shiftKey) { e.preventDefault(); openNewModal(); }
+  if (mod && (e.key === 'w' || e.key === 'W')) { e.preventDefault(); if (active) closeTab(active); }
+  if (mod && e.key === '`')     { e.preventDefault(); toggleTerm(); }
+  if (mod && e.key === '\\')    { e.preventDefault(); toggleSidebar(); }
+});
+
+document.getElementById('run-btn').addEventListener('click', runCode);
+window.addEventListener('resize', () => { if (editor) editor.layout(); });
+
+// ═══════════════════════════════════════════════════════════
+//  MONACO INIT
+// ═══════════════════════════════════════════════════════════
+require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs' } });
+
+require(['vs/editor/editor.main'], function () {
+
+  // Dracula-inspired theme
+  monaco.editor.defineTheme('abstract-dark', {
+    base: 'vs-dark',
+    inherit: true,
+    rules: [
+      { token: '',                      foreground: 'CDD6F4', background: '0A0B18' },
+      { token: 'comment',               foreground: '545F80', fontStyle: 'italic'  },
+      { token: 'keyword',               foreground: 'FF79C6' },
+      { token: 'keyword.control',       foreground: 'FF79C6' },
+      { token: 'keyword.operator',      foreground: 'FF79C6' },
+      { token: 'string',                foreground: 'F1FA8C' },
+      { token: 'string.escape',         foreground: 'FFB86C' },
+      { token: 'number',                foreground: 'BD93F9' },
+      { token: 'number.float',          foreground: 'BD93F9' },
+      { token: 'type',                  foreground: 'FFB86C' },
+      { token: 'type.identifier',       foreground: 'FFB86C' },
+      { token: 'class',                 foreground: '50FA7B' },
+      { token: 'function',              foreground: '50FA7B' },
+      { token: 'variable',              foreground: '8BE9FD' },
+      { token: 'variable.parameter',    foreground: 'FFB86C' },
+      { token: 'operator',              foreground: 'FF79C6' },
+      { token: 'delimiter',             foreground: 'CDD6F4' },
+      { token: 'tag',                   foreground: 'FF79C6' },
+      { token: 'attribute.name',        foreground: '50FA7B' },
+      { token: 'attribute.value',       foreground: 'F1FA8C' },
+      { token: 'metatag',               foreground: 'FFB86C' },
+      { token: 'key',                   foreground: 'FF79C6' },
+    ],
+    colors: {
+      'editor.background':                    '#0A0B18',
+      'editor.foreground':                    '#CDD6F4',
+      'editor.lineHighlightBackground':       '#1A1C3060',
+      'editor.selectionBackground':           '#44475A',
+      'editor.inactiveSelectionBackground':   '#2C2F45',
+      'editorCursor.foreground':              '#BD93F9',
+      'editorWhitespace.foreground':          '#1E2340',
+      'editorLineNumber.foreground':          '#2C3454',
+      'editorLineNumber.activeForeground':    '#6272A4',
+      'editorIndentGuide.background1':        '#1A1C30',
+      'editorIndentGuide.activeBackground1':  '#3D4466',
+      'editor.findMatchBackground':           '#BD93F950',
+      'editor.findMatchHighlightBackground':  '#F1FA8C25',
+      'editorSuggestWidget.background':       '#131425',
+      'editorSuggestWidget.border':           '#1A1C30',
+      'editorSuggestWidget.selectedBackground':'#1A1C30',
+      'scrollbarSlider.background':           '#1A1C3060',
+      'scrollbarSlider.hoverBackground':      '#2C3454',
+      'scrollbarSlider.activeBackground':     '#3D4466',
+      'minimap.background':                   '#080913',
+      'editorBracketHighlight.foreground1':   '#BD93F9',
+      'editorBracketHighlight.foreground2':   '#50FA7B',
+      'editorBracketHighlight.foreground3':   '#8BE9FD',
+    }
+  });
+
+  editor = monaco.editor.create(document.getElementById('monaco-container'), {
+    model: null,
+    theme: 'abstract-dark',
+    fontSize: 13.5,
+    fontFamily: "'Cascadia Code', 'Fira Code', 'JetBrains Mono', Consolas, monospace",
+    fontLigatures: true,
+    lineHeight: 22,
+    minimap: { enabled: true, scale: 1 },
+    scrollBeyondLastLine: false,
+    renderLineHighlight: 'line',
+    cursorBlinking: 'smooth',
+    cursorSmoothCaretAnimation: 'on',
+    smoothScrolling: true,
+    padding: { top: 10, bottom: 10 },
+    bracketPairColorization: { enabled: true },
+    guides: { bracketPairs: true, indentation: true },
+    suggest: { showKeywords: true, showSnippets: true },
+    formatOnPaste: true,
+    wordWrap: 'off',
+    automaticLayout: true,
+    renderValidationDecorations: 'on',
+    tabSize: 4,
+    insertSpaces: true,
+  });
+
+  editor.onDidChangeCursorPosition(updatePos);
+
+  // Load files & open first tab
+  loadFiles();
+  renderTree();
+  const first = Object.keys(files)[0];
+  if (first) openFile(first);
+  editor.focus();
+
+  // Start Python
+  initPyodide();
+});
+</script>
+</body>
+</html>
