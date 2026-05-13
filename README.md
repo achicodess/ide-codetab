@@ -1,5 +1,6 @@
 # Project IDEcodetab
-Project IDEcodetab is a fully conatained, broswer based IDE for Python. Using this, you can write, execute and debug your programs in real-time on your own browser. This project reqires no server, toolchain, Node.js or backend for functioning. Every interaction is cached. 
+Project IDEcodetab is a fully contained, broswer based IDE for Python. Using this, you can write, execute and debug your programs in real-time on your own browser. This project reqires no server, toolchain, Node.js or backend for functioning. Every interaction is cached. 
+
 ## How It Works
 Three external libraries are loaded and they do all the processes necessary for functioning of the IDE.
 The Libraries are:
@@ -76,4 +77,4 @@ The bottom strip part shows the current git branch label (cosmetic), a pulsing d
 The shortcuts can be viewed on the left hand side corner, 3rd icon.
 
 
-The website can be used and found at https://idetab.netlify.app/
+The website is hosted on Netlify. It can be used and found at https://idetab.netlify.app/
